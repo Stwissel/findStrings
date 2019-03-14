@@ -96,11 +96,8 @@ public class StringFinder {
             throw new Exception("Input is not a directory");
         }
 
-        int i = 0;
-        while (this.expandSources(sourceDir, sourceDir)) {
-            i++;
-            System.out.println("Expanding files round " + i);
-        }
+        this.expandSources(sourceDir);
+  
         final File[] dirs = sourceDir.listFiles();
         for (final File d : dirs) {
             if (d.isDirectory()) {
@@ -151,19 +148,22 @@ public class StringFinder {
      * @param targetDir
      * @throws IOException
      */
-    private boolean expandSources(final File sourceDir, final File targetDir) throws IOException {
+    private boolean expandSources(final File sourceDir) throws IOException {
         boolean result = false;
         final File[] allFiles = sourceDir.listFiles();
 
         for (final File f : allFiles) {
             if (f.isDirectory()) {
-                final File newTarget = new File(targetDir.getAbsolutePath() + File.separator + f.getName());
-                result = result || this.expandSources(f, newTarget);
+                result = result || this.expandSources(f);
 
             } else if (f.getName().endsWith(".zip")) {
-                final String newDirName = f.getName().replace(".zip", "");
-                final File newTarget = new File(targetDir.getAbsolutePath() + File.separator + newDirName);
-                result = result || this.expandFile(f, newTarget);
+                final String newDirName = f.getAbsolutePath().replace(".zip", "");
+                final File newTarget = new File(newDirName);
+                
+                // Need to scan the new directory too 
+                if (this.expandFile(f, newTarget)) {
+                    result = result || this.expandSources(newTarget);
+                }
             }
         }
         return result;
