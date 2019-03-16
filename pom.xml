@@ -3,9 +3,9 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.wissel.tool</groupId>
 	<artifactId>net.wissel.tool.findStrings</artifactId>
-	<version>0.0.2-SNAPSHOT</version>
+	<version>0.0.3</version>
 	<name>FindString</name>
-	<description>Extracts files from zip recursively and then checks for string occurences</description>
+	<description>Extracts files from zip recursively and then checks for string occurrences</description>
 	<properties>
 		<!-- Software versions -->
 		<java.version>1.8</java.version>

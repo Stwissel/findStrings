@@ -57,8 +57,10 @@ public class StringFinder {
     public static final String DIRNAME_LONGNAME    = "dir";
     public static final String STRINGFILE          = "s";
     public static final String STRINGFILE_LONGNAME = "stringfile";
-    public static final String OUTPUT          = "o";
-    public static final String OUTPUT_LONGNAME = "output";
+    public static final String OUTPUT              = "o";
+    public static final String OUTPUT_LONGNAME     = "output";
+    public static final String NOUNZIP             = "nz";
+    public static final String NOUNZIP_LONGNAME    = "nounzip";
 
     /**
      * @param Command
@@ -80,11 +82,48 @@ public class StringFinder {
 
     private PrintStream out;
 
-    private final Map<String, String>      keys    = new HashMap<>();
-    private final Map<String, Set<String>> results = new HashMap<>();
+    private final Map<String, String>      keys         = new HashMap<>();
+    private final Map<String, Set<String>> results      = new HashMap<>();
+    private boolean                        extractFiles = true;
 
     public StringFinder() {
         this.setupOptions();
+    }
+
+    public boolean parseCommandLine(final String[] args) throws FileNotFoundException {
+        boolean canProceed = false;
+        final CommandLineParser parser = new DefaultParser();
+        CommandLine line = null;
+        try {
+            // parse the command line arguments
+            line = parser.parse(this.options, args);
+        } catch (final ParseException exp) {
+            // oops, something went wrong
+            System.err.println("Command line parsing failed.  Reason: " + exp.getMessage());
+            System.exit(-1);
+        }
+
+        if (line != null) {
+            canProceed = (line.hasOption(StringFinder.DIRNAME) && line.hasOption(StringFinder.STRINGFILE));
+            if (line.hasOption(StringFinder.OUTPUT)) {
+                this.out = new PrintStream(line.getOptionValue(StringFinder.OUTPUT));
+            } else {
+                this.out = System.out;
+            }
+            if (line.hasOption(StringFinder.NOUNZIP)) {
+                this.extractFiles = false;
+            }
+        }
+
+        if (!canProceed) {
+            this.printHelp();
+
+        } else {
+            this.dirName = line.getOptionValue(StringFinder.DIRNAME);
+            this.stringFileName = line.getOptionValue(StringFinder.STRINGFILE);
+        }
+
+        return canProceed;
     }
 
     public void run() throws Exception {
@@ -96,8 +135,10 @@ public class StringFinder {
             throw new Exception("Input is not a directory");
         }
 
-        this.expandSources(sourceDir);
-  
+        if (this.extractFiles) {
+            this.expandSources(sourceDir);
+        }
+
         final File[] dirs = sourceDir.listFiles();
         for (final File d : dirs) {
             if (d.isDirectory()) {
@@ -159,8 +200,8 @@ public class StringFinder {
             } else if (f.getName().endsWith(".zip")) {
                 final String newDirName = f.getAbsolutePath().replace(".zip", "");
                 final File newTarget = new File(newDirName);
-                
-                // Need to scan the new directory too 
+
+                // Need to scan the new directory too
                 if (this.expandFile(f, newTarget)) {
                     result = result || this.expandSources(newTarget);
                 }
@@ -194,39 +235,6 @@ public class StringFinder {
         }
 
         return destFile;
-    }
-
-    private boolean parseCommandLine(final String[] args) throws FileNotFoundException {
-        boolean canProceed = false;
-        final CommandLineParser parser = new DefaultParser();
-        CommandLine line = null;
-        try {
-            // parse the command line arguments
-            line = parser.parse(this.options, args);
-        } catch (final ParseException exp) {
-            // oops, something went wrong
-            System.err.println("Command line parsing failed.  Reason: " + exp.getMessage());
-            System.exit(-1);
-        }
-
-        if (line != null) {
-            canProceed = (line.hasOption(StringFinder.DIRNAME) && line.hasOption(StringFinder.STRINGFILE));
-            if (line.hasOption(StringFinder.OUTPUT)) {
-                this.out = new PrintStream(line.getOptionValue(OUTPUT));
-            } else {
-                this.out = System.out;
-            }
-        }
-
-        if (!canProceed) {
-            this.printHelp();
-
-        } else {
-            this.dirName = line.getOptionValue(StringFinder.DIRNAME);
-            this.stringFileName = line.getOptionValue(StringFinder.STRINGFILE);
-        }
-
-        return canProceed;
     }
 
     private void populateKeys() throws FileNotFoundException {
@@ -307,10 +315,14 @@ public class StringFinder {
                 .desc("Filename with Strings to search, one per line")
                 .hasArg()
                 .build());
-        
+
         this.options.addOption(Option.builder(StringFinder.OUTPUT).longOpt(StringFinder.DIRNAME_LONGNAME)
                 .desc("Output file name for report in MD format")
                 .hasArg()
+                .build());
+
+        this.options.addOption(Option.builder(StringFinder.NOUNZIP).longOpt(StringFinder.NOUNZIP)
+                .desc("Rerun find operation on a ready unzipped structure - good for alternate finds")
                 .build());
     }
 
