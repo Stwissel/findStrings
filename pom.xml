@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.wissel.tool</groupId>
 	<artifactId>net.wissel.tool.findStrings</artifactId>
-	<version>0.0.3</version>
+	<version>0.0.4</version>
 	<name>FindString</name>
 	<description>Extracts files from zip recursively and then checks for string occurrences</description>
 	<properties>

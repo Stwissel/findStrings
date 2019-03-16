@@ -14,7 +14,7 @@ The source files are contained in ZIP files that can contain ZIP files recursive
 
 - -d,--dir <arg>          directory with all zip files
 - -s,--stringfile <arg>   Filename with Strings to search, one per line
-- -o,--dir <arg>          Output file name for report in MD format
+- -o,--output <arg>       Output file name for report in MD format
 - -nz,--nz                Rerun find operation on a ready unzipped structure - good for alternate finds
 
 (C) 2019 St.Wissel - see license file

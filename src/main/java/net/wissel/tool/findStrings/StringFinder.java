@@ -316,7 +316,7 @@ public class StringFinder {
                 .hasArg()
                 .build());
 
-        this.options.addOption(Option.builder(StringFinder.OUTPUT).longOpt(StringFinder.DIRNAME_LONGNAME)
+        this.options.addOption(Option.builder(StringFinder.OUTPUT).longOpt(StringFinder.OUTPUT_LONGNAME)
                 .desc("Output file name for report in MD format")
                 .hasArg()
                 .build());
