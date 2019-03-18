@@ -25,6 +25,16 @@ import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
 /**
  * @author swissel
  *
@@ -32,12 +42,48 @@ import java.util.Set;
 public class ReportRendererXML implements ReportRenderer {
 
     /**
-     * @see net.wissel.tool.findStrings.ReportRenderer#render(java.util.Map, java.util.Map, java.io.PrintStream)
+     * @see net.wissel.tool.findStrings.ReportRenderer#render(java.util.Map,
+     *      java.util.Map, java.io.PrintStream)
      */
     @Override
     public void render(Map<String, Set<String>> results, Map<String, String> keys, PrintStream out) {
-        // TODO FIX ME
 
+        try {
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // root elements
+            final Document doc = docBuilder.newDocument();
+            final Element rootElement = doc.createElement("result");
+            final Element keyRoot = doc.createElement("keys");
+            keys.forEach((k,v) -> {
+               Element key = doc.createElement("key");        
+               key.appendChild(doc.createTextNode(v));
+               keyRoot.appendChild(key);
+            });
+            final Element hitRoot = doc.createElement("hits");
+            results.forEach((key,list) -> {
+                list.forEach(hit -> {
+                    Element hitE = doc.createElement("hit");
+                    hitE.setAttribute("key", key);
+                    hitE.setAttribute("file", hit);
+                    hitRoot.appendChild(hitE);
+                });
+            });
+
+            // Finally the root
+            rootElement.appendChild(keyRoot);
+            rootElement.appendChild(hitRoot);
+            doc.appendChild(rootElement);
+            
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult(out);
+            transformer.transform(source, result);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 }
