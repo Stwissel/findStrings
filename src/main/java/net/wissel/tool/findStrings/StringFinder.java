@@ -85,7 +85,7 @@ public class StringFinder {
 
     private final Options      options   = new Options();
     private final List<String> knownZips = new ArrayList<>(Arrays.asList("zip", "xlsx", "docx", "pptx"));
-    private String             dirName;
+    private File             startDir;
     private String             stringFileName;
 
     private final Map<String, String>      keys           = new HashMap<>();
@@ -132,7 +132,7 @@ public class StringFinder {
             this.printHelp();
 
         } else {
-            this.dirName = line.getOptionValue(StringFinder.DIRNAME);
+            this.startDir = new File(line.getOptionValue(StringFinder.DIRNAME));
             this.stringFileName = line.getOptionValue(StringFinder.STRINGFILE);
         }
 
@@ -142,13 +142,11 @@ public class StringFinder {
     public void run() throws Exception {
         this.populateKeys();
 
-        final File sourceDir = new File(this.dirName);
-
-        if (!sourceDir.isDirectory()) {
+        if (!this.startDir.isDirectory()) {
             throw new Exception("Input is not a directory");
         }
 
-        final File[] dirs = sourceDir.listFiles();
+        final File[] dirs = this.startDir.listFiles();
         for (final File d : dirs) {
             this.processEntry(d, this.extractFiles, this.deepScan);
         }
@@ -191,12 +189,13 @@ public class StringFinder {
     }
 
     private void findKeyInFile(final File targetDirOrFile) throws IOException {
+        String fileName = targetDirOrFile.getAbsolutePath().substring(this.startDir.getAbsolutePath().length()+1);
         final String source = Files.asCharSource(targetDirOrFile, Charsets.UTF_8).read().toLowerCase();
         this.keys.keySet().forEach(k -> {
             if (source.indexOf(k) > -1) {
                 final Set<String> thisResult = this.results.containsKey(k) ? this.results.get(k)
                         : new HashSet<>();
-                thisResult.add(targetDirOrFile.getAbsolutePath());
+                thisResult.add(fileName);
                 this.results.put(k, thisResult);
             }
         });
