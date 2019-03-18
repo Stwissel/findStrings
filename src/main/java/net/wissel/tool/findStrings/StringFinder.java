@@ -27,8 +27,11 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
@@ -53,14 +56,18 @@ import com.google.common.io.Files;
  */
 public class StringFinder {
 
-    public static final String DIRNAME             = "d";
-    public static final String DIRNAME_LONGNAME    = "dir";
-    public static final String STRINGFILE          = "s";
-    public static final String STRINGFILE_LONGNAME = "stringfile";
-    public static final String OUTPUT              = "o";
-    public static final String OUTPUT_LONGNAME     = "output";
-    public static final String NOUNZIP             = "nz";
-    public static final String NOUNZIP_LONGNAME    = "nounzip";
+    public static final String DIRNAME               = "d";
+    public static final String DIRNAME_LONGNAME      = "dir";
+    public static final String STRINGFILE            = "s";
+    public static final String STRINGFILE_LONGNAME   = "stringfile";
+    public static final String OUTPUT                = "o";
+    public static final String OUTPUT_LONGNAME       = "output";
+    public static final String NOUNZIP               = "nz";
+    public static final String NOUNZIP_LONGNAME      = "nounzip";
+    public static final String REPORTFORMAT          = "r";
+    public static final String REPORTFORMAT_LONGNAME = "reportformat";
+    public static final String DEEPSCAN              = "x";
+    public static final String DEEPSCAN_LONGNAME     = "extensivescan";
 
     /**
      * @param Command
@@ -76,15 +83,17 @@ public class StringFinder {
 
     }
 
-    private final Options options = new Options();
-    private String        dirName;
-    private String        stringFileName;
+    private final Options      options   = new Options();
+    private final List<String> knownZips = new ArrayList<>(Arrays.asList("zip", "xlsx", "docx", "pptx"));
+    private String             dirName;
+    private String             stringFileName;
 
     private final Map<String, String>      keys           = new HashMap<>();
     private final Map<String, Set<String>> results        = new HashMap<>();
     private boolean                        extractFiles   = true;
     private String                         outputFileName = null;
     private ReportType                     reportType     = ReportType.MARKDOWN;
+    private boolean                        deepScan;
 
     public StringFinder() {
         this.setupOptions();
@@ -111,6 +120,12 @@ public class StringFinder {
             if (line.hasOption(StringFinder.NOUNZIP)) {
                 this.extractFiles = false;
             }
+            if (line.hasOption(StringFinder.DEEPSCAN)) {
+                this.deepScan = true;
+            }
+            if (line.hasOption(StringFinder.REPORTFORMAT)) {
+                this.setReportFormat(line.getOptionValue(StringFinder.REPORTFORMAT));
+            }
         }
 
         if (!canProceed) {
@@ -133,39 +148,15 @@ public class StringFinder {
             throw new Exception("Input is not a directory");
         }
 
-        if (this.extractFiles) {
-            this.expandSources(sourceDir);
-        }
-
         final File[] dirs = sourceDir.listFiles();
         for (final File d : dirs) {
-            if (d.isDirectory()) {
-                this.scanForKeys(d);
-            }
+            this.processEntry(d, this.extractFiles, this.deepScan);
         }
 
         if (!this.results.isEmpty()) {
-            ReportRenderer r = this.getReportRenderer();
+            final ReportRenderer r = this.getReportRenderer();
             r.render(this.results, this.keys, this.getOutput());
         }
-    }
-
-    private ReportRenderer getReportRenderer() {
-        switch (this.reportType) {
-            case JSON:
-                return new ReportRendererJSON();
-            case XML:
-                return new ReportRendererXML();
-            default: /* MD */
-                return new ReportRendererMD();
-        }
-    }
-
-    private PrintStream getOutput() throws FileNotFoundException {
-        if (this.outputFileName == null) {
-            return System.out;
-        }
-        return new PrintStream(this.outputFileName);
     }
 
     /**
@@ -199,35 +190,6 @@ public class StringFinder {
         return true;
     }
 
-    /**
-     * Scans the source directory for ZIP files and expands them into the target
-     *
-     * @param sourceDir
-     * @param targetDir
-     * @throws IOException
-     */
-    private boolean expandSources(final File sourceDir) throws IOException {
-        boolean result = false;
-        final File[] allFiles = sourceDir.listFiles();
-
-        for (final File f : allFiles) {
-            if (f.isDirectory()) {
-                result = result || this.expandSources(f);
-
-            } else if (f.getName().endsWith(".zip")) {
-                final String newDirName = f.getAbsolutePath().replace(".zip", "");
-                final File newTarget = new File(newDirName);
-
-                // Need to scan the new directory too
-                if (this.expandFile(f, newTarget)) {
-                    result = result || this.expandSources(newTarget);
-                }
-            }
-        }
-        return result;
-
-    }
-
     private void findKeyInFile(final File targetDirOrFile) throws IOException {
         final String source = Files.asCharSource(targetDirOrFile, Charsets.UTF_8).read().toLowerCase();
         this.keys.keySet().forEach(k -> {
@@ -239,6 +201,80 @@ public class StringFinder {
             }
         });
 
+    }
+
+    private PrintStream getOutput() throws FileNotFoundException {
+        if (this.outputFileName == null) {
+            return System.out;
+        }
+        return new PrintStream(this.outputFileName);
+    }
+
+    private ReportRenderer getReportRenderer() {
+        switch (this.reportType) {
+            case JSON:
+                return new ReportRendererJSON();
+            case XML:
+                return new ReportRendererXML();
+            default: /* MD */
+                return new ReportRendererMD();
+        }
+    }
+
+    /**
+     * Checks if a file is a ZIP file,
+     *
+     * @param f
+     *            - the file to check
+     * @param deep
+     *            if true tries to open ZIPStream, if false uses common entries
+     * @return
+     */
+    private boolean isZipFile(final File f, final boolean deep) {
+        if (deep) {
+            return this.isZipFileDeep(f);
+        }
+        final String someName = f.getName();
+        final String extension = someName.substring(someName.lastIndexOf(".") + 1);
+        return this.knownZips.contains(extension);
+    }
+
+    /**
+     * Tests a file for being a ZIP file by actually opening the file using a
+     * ZIPInputStream
+     *
+     * @param zipCandidate
+     *            - the file we suspect to be a zip file
+     * @return true/false if this is a zip file
+     */
+    private boolean isZipFileDeep(final File zipCandidate) {
+        boolean result = false;
+
+        FileInputStream in = null;
+        ZipInputStream zis = null;
+
+        try {
+            in = new FileInputStream(zipCandidate);
+            zis = new ZipInputStream(in);
+            @SuppressWarnings("unused")
+            final ZipEntry zipEntry = zis.getNextEntry();
+            // We got here, we have a ZIP file
+        } catch (final IOException e) {
+            result = false;
+        } finally {
+            try {
+                if (zis != null) {
+                    zis.close();
+                }
+                if (in != null) {
+                    in.close();
+                }
+            } catch (final IOException ex) {
+                // Not interested in this
+            }
+        }
+
+        return result;
     }
 
     private File newFile(final File destinationDir, final ZipEntry zipEntry) throws IOException {
@@ -275,19 +311,44 @@ public class StringFinder {
                 this.options);
     }
 
-    private void scanForKeys(final File targetDirOrFile) throws IOException {
-        if (!targetDirOrFile.exists()) {
-            return;
-        }
-        if (targetDirOrFile.isDirectory()) {
-            final File[] children = targetDirOrFile.listFiles();
+    private void processEntry(final File d, final boolean extract, final boolean deep) throws IOException {
+        if (d.isDirectory()) {
+            final File[] children = d.listFiles();
             for (final File f : children) {
-                this.scanForKeys(f);
+                this.processEntry(f, extract, deep);
+            }
+        } else if (this.isZipFile(d, deep)) {
+            if (extract) {
+                final String zipName = d.getAbsolutePath();
+                final String newDirName = zipName.substring(0, zipName.lastIndexOf("."));
+                final File newTarget = new File(newDirName);
+                if (this.expandFile(d, newTarget)) {
+                    final File[] children = newTarget.listFiles();
+                    for (final File f : children) {
+                        this.processEntry(f, extract, deep);
+                    }
+                }
             }
         } else {
-            if (!targetDirOrFile.getName().endsWith(".zip")) {
-                this.findKeyInFile(targetDirOrFile);
-            }
+            // Scanning a file
+            this.findKeyInFile(d);
+        }
+
+    }
+
+    private void setReportFormat(final String optionValue) {
+        final String compareString = String.valueOf(optionValue).trim().toLowerCase();
+        switch (compareString) {
+            case "xml":
+                this.reportType = ReportType.XML;
+                break;
+            case "json":
+                this.reportType = ReportType.JSON;
+                break;
+
+            default:
+                this.reportType = ReportType.MARKDOWN;
+                break;
         }
 
     }
@@ -303,12 +364,21 @@ public class StringFinder {
                 .build());
 
         this.options.addOption(Option.builder(StringFinder.OUTPUT).longOpt(StringFinder.OUTPUT_LONGNAME)
-                .desc("Output file name for report in MD format")
+                .desc("Output file name for report")
                 .hasArg()
                 .build());
 
-        this.options.addOption(Option.builder(StringFinder.NOUNZIP).longOpt(StringFinder.NOUNZIP)
+        this.options.addOption(Option.builder(StringFinder.REPORTFORMAT).longOpt(StringFinder.REPORTFORMAT_LONGNAME)
+                .desc("Format for the Report: markdown, xml, json")
+                .hasArg()
+                .build());
+
+        this.options.addOption(Option.builder(StringFinder.NOUNZIP).longOpt(StringFinder.NOUNZIP_LONGNAME)
                 .desc("Rerun find operation on a ready unzipped structure - good for alternate finds")
+                .build());
+
+        this.options.addOption(Option.builder(StringFinder.DEEPSCAN).longOpt(StringFinder.DEEPSCAN_LONGNAME)
+                .desc("Test every file for Zipped content (catches office formats too) - Warning SLOW!!!")
                 .build());
     }
 
