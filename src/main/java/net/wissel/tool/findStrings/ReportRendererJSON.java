@@ -22,8 +22,13 @@
 package net.wissel.tool.findStrings;
 
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 /**
  * @author swissel
@@ -36,8 +41,11 @@ public class ReportRendererJSON implements ReportRenderer {
      */
     @Override
     public void render(Map<String, Set<String>> results, Map<String, String> keys, PrintStream out) {
-        // TODO FIXME
-
+        Collection<Object> result = new ArrayList<>();
+       result.add(keys);
+       result.add(results);
+       Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        out.print(gson.toJson(result));  
     }
 
 }
