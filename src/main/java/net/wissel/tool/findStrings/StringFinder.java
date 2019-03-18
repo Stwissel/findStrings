@@ -80,11 +80,11 @@ public class StringFinder {
     private String        dirName;
     private String        stringFileName;
 
-    private PrintStream out;
-
-    private final Map<String, String>      keys         = new HashMap<>();
-    private final Map<String, Set<String>> results      = new HashMap<>();
-    private boolean                        extractFiles = true;
+    private final Map<String, String>      keys           = new HashMap<>();
+    private final Map<String, Set<String>> results        = new HashMap<>();
+    private boolean                        extractFiles   = true;
+    private String                         outputFileName = null;
+    private ReportType                     reportType     = ReportType.MARKDOWN;
 
     public StringFinder() {
         this.setupOptions();
@@ -106,9 +106,7 @@ public class StringFinder {
         if (line != null) {
             canProceed = (line.hasOption(StringFinder.DIRNAME) && line.hasOption(StringFinder.STRINGFILE));
             if (line.hasOption(StringFinder.OUTPUT)) {
-                this.out = new PrintStream(line.getOptionValue(StringFinder.OUTPUT));
-            } else {
-                this.out = System.out;
+                this.outputFileName = line.getOptionValue(StringFinder.OUTPUT);
             }
             if (line.hasOption(StringFinder.NOUNZIP)) {
                 this.extractFiles = false;
@@ -147,8 +145,27 @@ public class StringFinder {
         }
 
         if (!this.results.isEmpty()) {
-            this.printResults();
+            ReportRenderer r = this.getReportRenderer();
+            r.render(this.results, this.keys, this.getOutput());
         }
+    }
+
+    private ReportRenderer getReportRenderer() {
+        switch (this.reportType) {
+            case JSON:
+                return new ReportRendererJSON();
+            case XML:
+                return new ReportRendererXML();
+            default: /* MD */
+                return new ReportRendererMD();
+        }
+    }
+
+    private PrintStream getOutput() throws FileNotFoundException {
+        if (this.outputFileName == null) {
+            return System.out;
+        }
+        return new PrintStream(this.outputFileName);
     }
 
     /**
@@ -256,37 +273,6 @@ public class StringFinder {
         formatter.printHelp(
                 "java -jar findString.jar ",
                 this.options);
-    }
-
-    private void printResults() {
-        this.out.println();
-        this.out.println("# Scan Results");
-        this.out.println();
-        this.out.println("## Strings found in files");
-        this.out.println();
-        this.keys.forEach((key, printval) -> {
-
-            if (this.results.containsKey(key)) {
-                this.out.println("### " + printval);
-                this.out.println();
-                this.results.get(key).forEach(f -> {
-                    this.out.println("- " + f);
-                });
-                this.out.println();
-            }
-
-        });
-
-        this.out.println("## Strings not found");
-        this.out.println();
-        this.keys.forEach((k, v) -> {
-            if (!this.results.containsKey(k)) {
-                this.out.println("- " + v);
-            }
-        });
-        this.out.flush();
-        this.out.close();
-
     }
 
     private void scanForKeys(final File targetDirOrFile) throws IOException {
